@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31105.61
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "wall_transient", "wall_transient.vcxproj", "{C288C5EF-228A-4BD3-BDD9-956D7566FD71}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "wall_tr", "wall_tr.vcxproj", "{C288C5EF-228A-4BD3-BDD9-956D7566FD71}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
