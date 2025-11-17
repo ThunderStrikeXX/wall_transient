@@ -127,79 +127,78 @@ std::vector<double> solveTridiagonal(const std::vector<double>& a,
 #pragma endregion
 
 //-------------------------------------------------------------
-// Simplified 1D transient coupling between wall, wick, and vapor
+// Simplified 1D solver for the transient of a steel wall
 //-------------------------------------------------------------
 
 int main() {
     const double L = 1.0;                                   // Length of the heat pipe [m]
-    const int Nx = 10000;                                   // Number of nodes [-]
+    const int Nx = 100;                                      // Number of nodes [-]
     const double dx = L / Nx;                               // Spacing between nodes [-]
     const int t_max = 20;                                   // Maximum simulation time [s]
-    const double dt = 0.001;                                     // Initial timestep [s] 
+    const double dt = 0.01;                                 // Initial timestep [s] 
     const double Nt = (int)std::round(t_max / dt);          // Number of iterations [-]
 	const double T_0 = 500.0;                               // Initial temperature [K]
 
     // Temperature scalar field
-    std::vector<std::vector<double>> T(Nx, std::vector<double>(Nt, T_0));
+    std::vector<double>T(Nx, T_0);
 
-    std::vector<double> a(Nx, 0.0);
-    std::vector<double> b(Nx, 0.0);
-    std::vector<double> c(Nx, 0.0);
-    std::vector<double> d(Nx, 0.0);
+    std::vector<double> aWT(Nx, 0.0);
+    std::vector<double> bWT(Nx, 0.0);
+    std::vector<double> cWT(Nx, 0.0);
+    std::vector<double> dWT(Nx, 0.0);
 
     // Node 0: imposed temperature T = T_0
-    b[0] = 1.0;  c[0] = 0.0;  a[0] = 0.0; d[0] = T_0;
+    aWT[0] = 0.0;
+    bWT[0] = 1.0;  
+    cWT[0] = 0.0;   
+    dWT[0] = T_0;
 
     // Nodo Nx - 1: zero heat flux
-    b[Nx - 1] = 1.0;  a[Nx - 1] = -1.0;  c[Nx - 1] = 0.0; d[Nx - 1] = 0.0;
+    aWT[Nx - 1] = -1.0;
+    bWT[Nx - 1] = 1.0;     
+    cWT[Nx - 1] = 0.0;
+    dWT[Nx - 1] = 0.0;
 
 	double Cp_node, k_node, rho_node;
 
-	// Source term
+    // Source term
     std::vector<double> Q(Nx, 1e8);
 
-	// Time-stepping loop
+    std::ofstream fout("solution_wall_transient.txt");
+    fout << std::setprecision(8);
+
+	// Time-stepping/convergence loop
     for (int it = 1; it < Nt; it++) {        
 
 		std::cout << "Time step " << it << " / " << Nt - 1 << "\n";
 
 		// d coefficients assembly loop
-        #pragma omp parallel
+        #pragma omp parallel for
         for (int ix = 1; ix < Nx - 1; ix++) {
 
-            Cp_node = steel::cp(T[ix][it - 1]);
-			rho_node = steel::rho(T[ix][it - 1]);
-			k_node = steel::k(T[ix][it - 1]);
+            Cp_node = steel::cp(T[ix]);
+			rho_node = steel::rho(T[ix]);
+			k_node = steel::k(T[ix]);
 
             double alpha = k_node / (rho_node * Cp_node);
-            double r = alpha * dt / (dx * dx);
+            double r = alpha / (dx * dx);
 
             // Coefficients
-            a[ix] = -r;
-            b[ix] = 1 + 2 * r;
-            c[ix] = -r;
-            d[ix] = T[ix][it - 1] + dt * Q[ix] / (rho_node * Cp_node);
+            aWT[ix] = -r;
+            bWT[ix] = 1.0 / dt + 2 * r;
+            cWT[ix] = -r;
+            dWT[ix] = T[ix] / dt + Q[ix] / (rho_node * Cp_node);
         }
 
         std::vector<double> temp_x(Nx, 0.0);
-        temp_x = solveTridiagonal(a, b, c, d);
+        T = solveTridiagonal(aWT, bWT, cWT, dWT);
 
-        #pragma omp parallel for
-        for (int jx = 0; jx < Nx; jx++) {
-            T[jx][it] = temp_x[jx];
+        if (it % 10 == 0){
+            for (int ix = 0; ix < Nx; ix++) fout << T[ix] << ", ";         
+            fout << "\n";
         }
-    }
 
-    std::ofstream fout("solution_wall_FD.txt");
-    fout << std::setprecision(8);
-
-    // Output section
-
-    for (int ix = 0; ix < Nx; ix++) {
-
-        if (ix == (Nx / 2)) {
-            for (int it = 0; it < Nt; ++it) fout << T[ix][it] << ", ";
-        }
+        fout.flush();
     }
 
     fout.close();
